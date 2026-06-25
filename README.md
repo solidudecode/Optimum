@@ -1,8 +1,8 @@
-# Cadence
+# Optimum
 
 Client-side performance mod for [Vintage Story](https://www.vintagestory.at).
 
-Cadence reduces frame time and GC pressure by skipping work that produces no observable result. Same philosophy as [Stratum](https://github.com/trevorftp/Stratum) (server-side), applied to the client.
+Optimum reduces frame time and GC pressure by skipping work that produces no observable result. Same philosophy as [Stratum](https://github.com/trevorftp/Stratum) (server-side), applied to the client.
 
 ## Status
 
