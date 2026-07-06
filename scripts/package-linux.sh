@@ -191,7 +191,7 @@ dotnet run --project "$REPO_ROOT/Optimum.Patcher" -c Release -- "$VANILLA_DIR/Vi
 # ============================================================================
 
 INFO_FILE="$REPO_ROOT/build/VintagestoryLib/Optimum/OptimumInfo.cs"
-OPT_VER="0.2.1"
+OPT_VER="0.2.2"
 if [[ -f "$INFO_FILE" ]]; then
     MATCH=$(perl -ne 'if (/Version\s*=\s*"([^"]+)"/) { print $1; exit }' "$INFO_FILE" || true)
     if [[ -n "$MATCH" ]]; then OPT_VER="$MATCH"; fi
@@ -246,6 +246,24 @@ with open(sys.argv[2], 'w', encoding='utf-8') as f: json.dump(dst, f, ensure_asc
 fi
 
 # ============================================================================
+# Validate the staged assets: zero-byte or truncated files from a bad
+# vanilla extraction surface in-game as opaque GL crashes ("blur.vsh ...
+# unexpected \$end at <EOF>"). Fail the package instead.
+EMPTY_ASSETS=$(find "$STAGE_DIR/assets" -type f -size 0 ! -name 'version-*.txt' || true)
+if [[ -n "$EMPTY_ASSETS" ]]; then
+    echo "Error: staged assets contain zero-byte file(s); the vanilla extraction is corrupt:" >&2
+    echo "$EMPTY_ASSETS" >&2
+    exit 1
+fi
+BAD_SHADERS=""
+while IFS= read -r -d '' f; do
+    grep -q 'void[[:space:]]*main' "$f" || BAD_SHADERS="$BAD_SHADERS $f"
+done < <(find "$SHADER_DST" -maxdepth 1 -type f \( -name '*.vsh' -o -name '*.fsh' -o -name '*.gsh' \) -print0)
+if [[ -n "$BAD_SHADERS" ]]; then
+    echo "Error: staged shader(s) truncated or corrupt (no 'void main'):$BAD_SHADERS" >&2
+    exit 1
+fi
+
 # 6. Rebrand: rename launcher, repoint run.sh, swap icon, brand .desktop
 # ============================================================================
 

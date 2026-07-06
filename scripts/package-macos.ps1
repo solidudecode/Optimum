@@ -83,7 +83,7 @@ try {
 
     # 3. Version from OptimumInfo.cs.
     $infoFile = Join-Path $repoRoot 'build/VintagestoryLib/Optimum/OptimumInfo.cs'
-    $optVer = '0.2.1'
+    $optVer = '0.2.2'
     if (Test-Path $infoFile) {
         $m = [regex]::Match((Get-Content $infoFile -Raw), 'Version\s*=\s*"([^"]+)"')
         if ($m.Success) { $optVer = $m.Groups[1].Value }
@@ -131,6 +131,24 @@ try {
             }
             Set-Content $dstFile -Value $dstText -Encoding UTF8
         }
+    }
+
+    # Validate the staged assets: zero-byte or truncated files from a bad
+    # vanilla extraction surface in-game as opaque GL crashes ("blur.vsh ...
+    # unexpected $end at <EOF>"). Fail the package instead.
+    $stageAssets = Join-Path $appDir 'assets'
+    $zeroByte = @(Get-ChildItem -Path $stageAssets -Recurse -File |
+        Where-Object { $_.Length -eq 0 -and $_.Name -notlike 'version-*.txt' })
+    if ($zeroByte.Count -gt 0) {
+        $names = ($zeroByte | Select-Object -First 10 | ForEach-Object { $_.FullName }) -join "`n  "
+        throw "Staged assets contain $($zeroByte.Count) zero-byte file(s); the vanilla extraction is corrupt. Delete '$baseApp' and re-run.`n  $names"
+    }
+    $badShaders = @(Get-ChildItem -Path $shaderDst -File |
+        Where-Object { $_.Extension -in '.vsh', '.fsh', '.gsh' } |
+        Where-Object { (Get-Content $_.FullName -Raw) -notmatch 'void\s+main' })
+    if ($badShaders.Count -gt 0) {
+        $names = ($badShaders | ForEach-Object { $_.Name }) -join ', '
+        throw "Staged shader(s) truncated or corrupt (no 'void main'): $names. Delete '$baseApp' and re-run."
     }
 
     # 6. Rebrand: rename launcher, swap icon, rewrite Info.plist.
