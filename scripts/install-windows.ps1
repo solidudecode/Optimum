@@ -419,6 +419,12 @@ function Invoke-OptimumBuild {
         # $end at <EOF>"), so verify now and discard a bad extraction.
         $corrupt = @(Get-ChildItem -Path (Join-Path $vanillaDir 'assets') -Recurse -File -ErrorAction SilentlyContinue |
             Where-Object { $_.Length -eq 0 -and $_.Name -notlike 'version-*.txt' })
+        $vanillaShaders = Join-Path $vanillaDir 'assets/game/shaders'
+        if (Test-Path $vanillaShaders) {
+            $corrupt += @(Get-ChildItem -Path $vanillaShaders -File |
+                Where-Object { $_.Extension -in '.vsh', '.fsh', '.gsh' } |
+                Where-Object { (Get-Content $_.FullName -Raw) -notmatch 'void\s+main' })
+        }
         if ($corrupt.Count -gt 0) {
             $names = ($corrupt | Select-Object -First 10 | ForEach-Object { $_.FullName }) -join "`n  "
             Remove-Item -Recurse -Force $vanillaDir -ErrorAction SilentlyContinue
@@ -431,6 +437,19 @@ function Invoke-OptimumBuild {
         throw "Vintage Story install not found. Point the installer to your VS folder or enable Download."
     }
     Write-Log "Using Vintage Story from: $VsPath"
+
+    # Validate shaders in the user's VS install. A previous partial extraction
+    # or corrupted install surfaces later as "blur.vsh ... unexpected $end".
+    $vsShaders = Join-Path $VsPath 'assets/game/shaders'
+    if (Test-Path $vsShaders) {
+        $badShaders = @(Get-ChildItem -Path $vsShaders -File |
+            Where-Object { $_.Extension -in '.vsh', '.fsh', '.gsh' } |
+            Where-Object { $_.Length -eq 0 -or ((Get-Content $_.FullName -Raw) -notmatch 'void\s+main') })
+        if ($badShaders.Count -gt 0) {
+            $names = ($badShaders | Select-Object -First 5 | ForEach-Object { $_.Name }) -join ', '
+            throw "Vintage Story shaders are corrupt ($names). Reinstall Vintage Story or delete the Optimum .vanilla cache and retry."
+        }
+    }
 
     if (-not (Find-ILSpyCmd)) {
         Write-Phase "Installing decompiler tool..."
